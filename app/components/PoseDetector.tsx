@@ -2,61 +2,106 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Webcam from 'react-webcam';
-import * as tmPose from '@teachablemachine/pose';
 
-// --- Typer ---
-// Props-gränssnittet beskriver vad förälderkomponenten måste skicka in.
-// onGestureDetected är en callback-funktion som anropas varje gång
-// modellen identifierar en gest med tillräcklig säkerhet.
+// --- Typdeklarationer ---
+// Vi laddar tmPose från CDN (via layout.tsx) istället för via webpack/npm.
+// Det betyder att biblioteket inte importeras här uppe — det lever på window.tmPose.
+// Dessa interface-deklarationer berättar för TypeScript vad window.tmPose innehåller
+// så att vi får typkontroll och autocompletion trots att det är ett globalt objekt.
+
+interface Prediction {
+  className: string;
+  probability: number;
+}
+
+// Representerar den laddade modellen och dess metoder.
+// estimatePose accepterar både video- och canvas-element.
+interface TmPoseModel {
+  estimatePose: (
+    input: HTMLVideoElement | HTMLCanvasElement
+  ) => Promise<{ posenetOutput: number[] }>;
+  predict: (
+    posenetOutput: number[]
+  ) => Promise<Prediction[]>;
+}
+
+// Utökar den globala Window-typen med tmPose-objektet.
+// "declare global" är ett TypeScript-mönster för att lägga till egenskaper
+// på globala objekt (som window) utan att ändra befintliga definitioner.
+declare global {
+  interface Window {
+    tmPose: {
+      load: (modelURL: string, metadataURL: string) => Promise<TmPoseModel>;
+    };
+  }
+}
+
+// --- Props ---
 interface PoseDetectorProps {
   onGestureDetected: (className: string) => void;
 }
 
 // --- Konstanter ---
-// Sökvägarna pekar på filerna i public/model/ — Next.js serverar
-// allt i public/ som statiska filer tillgängliga från roten (/).
 const MODEL_URL = '/model/model.json';
 const METADATA_URL = '/model/metadata.json';
 
-// Konfidensgräns: modellen måste vara minst 80% säker på sin gissning.
-// Om ingen klass når upp till denna gräns rapporterar vi "Ingen gest".
-// Du kan justera detta värde under testning (lägre = mer känslig, högre = mer strikt).
+// Konfidensgräns: modellen måste vara minst 80% säker för att rapportera en gest.
+// Justera detta under testning — lägre värde = mer känslig, fler falska positiver.
 const CONFIDENCE_THRESHOLD = 0.8;
 
+// Dröjsmålstid: gesten måste hållas stabilt i minst 600ms innan den rapporteras.
+// Detta förhindrar att kortvariga felklassificeringar visas i gränssnittet.
+// Öka värdet för striktare krav (t.ex. 1000ms), minska för snabbare respons.
+const DEBOUNCE_MS = 600;
+
 export default function PoseDetector({ onGestureDetected }: PoseDetectorProps) {
-  // Referens till webbkamerans React-komponent, används för att nå
-  // det underliggande HTMLVideoElement som modellen behöver som indata.
+  // Referens till webbkamerans DOM-element (HTMLVideoElement).
   const webcamRef = useRef<Webcam>(null);
 
-  // Referens till den laddade Teachable Machine-modellen.
-  // Vi använder useRef istället för useState eftersom vi inte vill att
-  // komponenten ritas om varje gång modellen uppdateras internt.
-  const modelRef = useRef<tmPose.CustomPoseNet | null>(null);
+  // Referens till den laddade modellen. useRef istället för useState
+  // eftersom vi inte vill att ett modelupdate orsakar en omrendering.
+  const modelRef = useRef<TmPoseModel | null>(null);
 
-  // Referens till det aktiva requestAnimationFrame-ID:t.
-  // Vi sparar det för att kunna avbryta loopen när komponenten avmonteras,
-  // annars fortsätter loopen köra i bakgrunden och orsakar minnesläckor.
+  // Referens till pågående requestAnimationFrame-ID — behövs för att
+  // kunna avbryta loopen när komponenten avmonteras (städning).
   const loopRef = useRef<number>(0);
 
-  // Referens till callback-funktionen från föräldern.
-  // Föräldern kan rendera om sig utan att vi behöver starta om inferensloopen —
-  // loopen läser alltid den senaste versionen av funktionen via denna ref.
+  // Referens till callback-funktionen. Gör att loopen alltid anropar
+  // den senaste versionen av funktionen utan att behöva starta om.
   const callbackRef = useRef(onGestureDetected);
+
+  // Debounce-ref: håller koll på vilken klass som detekteras just nu
+  // och exakt när den klassen *först* dök upp i rad.
+  // När en ny klass dyker upp nollställs timern.
+  // Gesten rapporteras bara uppåt när samma klass hållits i DEBOUNCE_MS millisekunder.
+  const debounceRef = useRef<{ className: string; since: number } | null>(null);
+
+  // Off-screen canvas för att spegla videobilden horisontellt innan inferens.
+  //
+  // VARFÖR: Teachable Machine spelar in träningsdata med speglad (mirrored) bild,
+  // precis som en selfie-kamera. Det gör den via ctx.scale(-1, 1) på en canvas.
+  // Om vi skickar den ospeglade videon direkt till modellen är vänster och höger
+  // ombytta jämfört med träningsdatan — vilket gör att t.ex. 'Släck ljuset'
+  // (höger arm upp) klassificeras som en helt annan gest.
+  //
+  // Lösning: rita varje bildruta speglad till en dold canvas och skicka DEN
+  // till estimatePose, precis som Teachable Machine gör internt.
+  const mirrorCanvasRef = useRef<HTMLCanvasElement | null>(null);
   useEffect(() => {
     callbackRef.current = onGestureDetected;
   }, [onGestureDetected]);
 
-  // State: visas i gränssnittet (laddningsstatus och eventuella fel).
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // --- Effekt 1: Ladda modellen en gång när komponenten monteras ---
+  // --- Effekt 1: Ladda modellen en gång vid montering ---
   useEffect(() => {
     async function laddaModell() {
       try {
-        // tmPose.load() hämtar model.json och weights.bin från servern,
-        // samt metadata.json med klassnamnen, och bygger upp ett TensorFlow.js-nätverk.
-        modelRef.current = await tmPose.load(MODEL_URL, METADATA_URL);
+        // window.tmPose laddades via CDN-skripten i layout.tsx.
+        // Här anropar vi .load() med sökvägarna till modellfilerna i public/model/.
+        const model = await window.tmPose.load(MODEL_URL, METADATA_URL);
+        modelRef.current = model;
         setIsLoaded(true);
       } catch (err) {
         setError('Kunde inte ladda modellen. Kontrollera att filerna finns i public/model/.');
@@ -66,73 +111,101 @@ export default function PoseDetector({ onGestureDetected }: PoseDetectorProps) {
 
     laddaModell();
 
-    // Städfunktion: körs när komponenten avmonteras.
-    // Avbryter eventuell pågående animationsloop.
+    // Städfunktion: avbryt inferensloopen om komponenten avmonteras.
     return () => {
       cancelAnimationFrame(loopRef.current);
     };
-  }, []); // Tom beroende-array = körs bara en gång vid montering
+  }, []);
 
   // --- Effekt 2: Starta inferensloopen när modellen är laddad ---
   useEffect(() => {
-    // Vänta tills modellen har laddats klart innan vi startar loopen.
     if (!isLoaded) return;
+
+    // Skapa en dold canvas för spegling. Vi skapar den här (inte utanför useEffect)
+    // för att säkerställa att vi är i webbläsarmiljön och att canvasen inte
+    // lever kvar i DOM:en när effekten rensas upp.
+    const canvas = document.createElement('canvas');
+    mirrorCanvasRef.current = canvas;
 
     async function predict() {
       const video = webcamRef.current?.video;
 
-      // Videoströmmen är inte alltid redo direkt — readyState 4 (HAVE_ENOUGH_DATA)
-      // betyder att det finns tillräckligt med data för att spela upp utan avbrott.
-      // Vi hoppar över denna bildruta och försöker igen nästa frame om den inte är redo.
+      // readyState 4 = HAVE_ENOUGH_DATA: videoströmmen har tillräckligt med data.
+      // Hoppa över denna bildruta om kameran inte är redo ännu.
       if (!video || video.readyState !== 4 || !modelRef.current) {
         loopRef.current = requestAnimationFrame(predict);
         return;
       }
 
-      // estimatePose() analyserar en enskild videoruta med PoseNet och returnerar:
-      // - pose: kroppspunkter (keypoints) med koordinater och säkerhetsvärden
-      // - posenetOutput: en numerisk vektor som vår klassificerare är tränad att tolka
-      const { posenetOutput } = await modelRef.current.estimatePose(video);
+      try {
+        // Synkronisera canvasens storlek med videons faktiska pixelmått.
+        // videoWidth/videoHeight är kamerans verkliga upplösning (t.ex. 640x480),
+        // inte den CSS-renderade storleken (400x300 som vi satt i JSX).
+        const { videoWidth, videoHeight } = video;
+        if (canvas.width !== videoWidth)  canvas.width  = videoWidth;
+        if (canvas.height !== videoHeight) canvas.height = videoHeight;
 
-      // predict() skickar posenetOutput genom det tränade neurala nätverket
-      // och returnerar en array med sannolikheter för varje klass, t.ex.:
-      // [{ className: 'Huvudvärk', probability: 0.95 }, { className: 'Medicin', probability: 0.02 }, ...]
-      const predictions = await modelRef.current.predict(posenetOutput);
+        // Rita aktuell videobildruta speglad horisontellt till canvasen.
+        // ctx.scale(-1, 1) + drawImage med negativ x-offset = horisontal spegling.
+        // Det är precis vad Teachable Machine gör internt när flip=true.
+        const ctx = canvas.getContext('2d')!;
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, -videoWidth, 0, videoWidth, videoHeight);
+        ctx.restore();
 
-      // Hitta klassen med högst sannolikhet med hjälp av reduce().
-      // reduce() går igenom hela arrayen och behåller det "bästa" objektet hittills.
-      const bästa = predictions.reduce((prev, curr) =>
-        curr.probability > prev.probability ? curr : prev
-      );
+        // estimatePose: analyserar den SPEGLADE bildrutan med PoseNet och returnerar
+        // posenetOutput — en numerisk vektor som matchar träningsdatans orientering.
+        const { posenetOutput } = await modelRef.current.estimatePose(canvas);
 
-      // Rapportera bara om vi är tillräckligt säkra — annars behandlas det som ingen gest.
-      if (bästa.probability >= CONFIDENCE_THRESHOLD) {
-        callbackRef.current(bästa.className);
-      } else {
-        callbackRef.current('Ingen gest');
+        // predict: skickar posenetOutput genom det tränade nätverket och
+        // returnerar sannolikheter för varje klass, t.ex.:
+        // [{ className: 'Huvudvärk', probability: 0.95 }, ...]
+        const predictions = await modelRef.current.predict(posenetOutput);
+
+        // Hitta klassen med högst sannolikhet.
+        const bästa = predictions.reduce((prev, curr) =>
+          curr.probability > prev.probability ? curr : prev
+        );
+
+        // Tillfällig loggning för felsökning — ta bort när allt fungerar.
+        // Öppna webbläsarens DevTools (F12 → Console) för att se utdata.
+        console.log(`${bästa.className}: ${(bästa.probability * 100).toFixed(1)}%`);
+
+        // Avgör vilken klass som vann — eller 'Ingen gest' om vi inte är säkra nog.
+        const detectedClass =
+          bästa.probability >= CONFIDENCE_THRESHOLD ? bästa.className : 'Ingen gest';
+
+        // Debounce-logik:
+        // Om klassen BYTTES — nollställ timern och vänta igen.
+        // Om SAMMA klass hållits i minst DEBOUNCE_MS millisekunder — rapportera den.
+        if (debounceRef.current?.className !== detectedClass) {
+          debounceRef.current = { className: detectedClass, since: Date.now() };
+        } else if (Date.now() - debounceRef.current.since >= DEBOUNCE_MS) {
+          callbackRef.current(detectedClass);
+        }
+      } catch (err) {
+        // Om ett fel uppstår i inferensen loggas det, men loopen fortsätter.
+        // Utan denna try/catch skulle ett enda fel döda hela loopen tyst.
+        console.error('Inferensfel:', err);
+      } finally {
+        // finally körs ALLTID — oavsett om try lyckades eller catch kördes.
+        // Det garanterar att nästa bildruta alltid schemaläggs.
+        loopRef.current = requestAnimationFrame(predict);
       }
-
-      // Begär nästa bildruta från webbläsaren (~60 gånger per sekund).
-      // requestAnimationFrame synkroniserar med skärmens uppdateringsfrekvens
-      // vilket är effektivare än t.ex. setInterval.
-      loopRef.current = requestAnimationFrame(predict);
     }
 
-    // Starta loopen.
     predict();
 
-    // Städfunktion: avbryt loopen om isLoaded ändras (eller vid avmontering).
     return () => {
       cancelAnimationFrame(loopRef.current);
+      mirrorCanvasRef.current = null;
     };
-  }, [isLoaded]); // Startar om bara om isLoaded ändras
+  }, [isLoaded]);
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* Webbkameravyn.
-          mirrored={true} speglar bilden horisontellt så att användaren
-          ser sig själv som i en spegel — mer intuitivt vid gestigenkänning.
-          width/height sätter videorutan, inte webbläsarens renderade storlek. */}
+      {/* mirrored={true} speglar bilden som en spegel — mer intuitivt vid gestigenkänning */}
       <Webcam
         ref={webcamRef}
         mirrored={true}
@@ -141,12 +214,10 @@ export default function PoseDetector({ onGestureDetected }: PoseDetectorProps) {
         className="rounded-lg opacity-60"
       />
 
-      {/* Laddningsindikator — visas tills modellen är klar */}
       {!isLoaded && !error && (
         <p className="text-sm text-zinc-400">Laddar modell...</p>
       )}
 
-      {/* Felmeddelande — visas om modellen inte kunde laddas */}
       {error && (
         <p className="text-sm text-red-400">{error}</p>
       )}
