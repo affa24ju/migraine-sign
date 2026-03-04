@@ -35,12 +35,12 @@ export default function MessageDisplay({ detectedClass }: MessageDisplayProps) {
   if (!meddelande) return null;
 
   return (
-    // Centrera meddelandet på skärmen med stor, tydlig text.
-    // text-4xl = 36px, läsbart på avstånd utan att anstränga ögonen.
-    // text-zinc-100 = nästan vit text mot mörk bakgrund = hög kontrast, låg bländning.
-    // tracking-wide = lite extra teckenavstånd för bättre läsbarhet.
+    // text-5xl = 48px — stort nog att läsas på avstånd av en anhörig/vårdare.
+    // font-light = tunn textvikt, minskar visuell "tyngd" på skärmen.
+    // leading-snug = komprimerat radavstånd för korta meddelanden på en rad.
+    // max-w-lg begränsar radlängden så att texten inte sprider sig för brett.
     <div className="flex items-center justify-center p-8">
-      <p className="text-4xl font-light text-zinc-100 tracking-wide text-center">
+      <p className="text-5xl font-light text-zinc-200 tracking-wide leading-snug text-center max-w-lg">
         {meddelande}
       </p>
     </div>

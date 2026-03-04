@@ -1,44 +1,98 @@
 'use client';
 
-// useCallback används för att memorera callback-funktionen.
-// Utan useCallback skapas en ny funktionsreferens vid varje rendering,
-// vilket skulle orsaka att PoseDetector startar om sin inferensloop i onödan.
 import { useCallback, useState } from 'react';
 
 import PoseDetector from './components/PoseDetector';
 import MessageDisplay from './components/MessageDisplay';
 
 export default function Home() {
-  // State: det senaste detekterade klassnamnet från modellen.
-  // Startvärde är 'Ingen gest' vilket gör att ingenting visas vid start.
   const [detectedClass, setDetectedClass] = useState<string>('Ingen gest');
+  const [showCamera, setShowCamera] = useState<boolean>(true);
 
-  // useCallback memorerar funktionen så att samma referens återanvänds
-  // mellan renderingar — PoseDetector behöver inte starta om sin loop
-  // varje gång Home renderar om sig.
-  // Den tomma beroende-arrayen [] betyder att funktionen aldrig återskapas.
+  // Dimningsnivå: 0 = ingen dimning, 0.85 = maximal dimning (85% svart overlay).
+  // Startar på 0 — användaren justerar själv vid behov.
+  const [dimLevel, setDimLevel] = useState<number>(0);
+
   const handleGestureDetected = useCallback((className: string) => {
-    setDetectedClass(className);
+    if (className !== 'Ingen gest') {
+      setDetectedClass(className);
+    }
   }, []);
 
   return (
-    // Mörkgrå bakgrund (zinc-950) istället för svart — mjukare kontrast.
-    // min-h-screen + flex column centrerar allt vertikalt och horisontellt.
-    <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center gap-8 p-8">
+    <main className="min-h-screen bg-zinc-950 flex flex-col items-center justify-between p-6 gap-6">
 
-      {/* Rubrik — liten och diskret för att inte ta fokus */}
-      <h1 className="text-zinc-600 text-sm tracking-widest uppercase">
-        MigraineSign
-      </h1>
+      {/* ── Mörknande overlay ──────────────────────────────────────────────
+          position: fixed + inset-0 = täcker hela webbläsarfönstret.
+          pointer-events: none = overlay:en fångar INGA klick/touch-händelser.
+          Knappar och slider under den fungerar precis som vanligt.
+          opacity styrs dynamiskt via inline style utifrån dimLevel-state.
+          bg-black med opacity ger en mjuk, justerbar dimningseffekt —
+          ett enkelt sätt att minska skärmens upplevda ljusstyrka
+          utan att kräva åtkomst till enhetens OS-inställningar. */}
+      <div
+        className="fixed inset-0 bg-black pointer-events-none z-50"
+        style={{ opacity: dimLevel }}
+        aria-hidden="true"
+      />
 
-      {/* PoseDetector hanterar kameran och modellen.
-          Varje gång en gest detekteras anropas handleGestureDetected
-          med klassnamnet som argument, vilket uppdaterar state i Home. */}
-      <PoseDetector onGestureDetected={handleGestureDetected} />
+      {/* ── Övre zon: kamera och kontroller ───────────────────────────── */}
+      {/* relative z-60 lyfter kontrollerna ovanför overlay:en (z-50)
+          så att de alltid går att interagera med. */}
+      <div className="relative z-60 flex flex-col items-center gap-3 w-full">
 
-      {/* MessageDisplay tar emot det detekterade klassnamnet och
-          visar motsvarande svenska mening. Renderar ingenting vid "Ingen gest". */}
-      <MessageDisplay detectedClass={detectedClass} />
+        <h1 className="text-zinc-600 text-xs tracking-widest uppercase">
+          MigraineSign
+        </h1>
+
+        <PoseDetector
+          onGestureDetected={handleGestureDetected}
+          showCamera={showCamera}
+        />
+
+        <button
+          onClick={() => setShowCamera(prev => !prev)}
+          className="text-zinc-400 text-base tracking-wide py-3 px-6 rounded-md border border-zinc-700"
+          aria-label={showCamera ? 'Dölj kamera' : 'Visa kamera'}
+        >
+          {showCamera ? 'Dölj kamera' : 'Visa kamera'}
+        </button>
+
+      </div>
+
+      {/* ── Meddelande ────────────────────────────────────────────────── */}
+      <div className="relative z-60 flex flex-1 items-center justify-center w-full">
+        <MessageDisplay detectedClass={detectedClass} />
+      </div>
+
+      {/* ── Dimningsreglage ───────────────────────────────────────────── */}
+      {/* Placerat längst ner på sidan. z-60 håller det klickbart ovanför overlay:en.
+          Reglaget ger användaren direkt kontroll över skärmens upplevda ljusstyrka
+          utan att behöva lämna appen — viktigt vid migrän när varje interaktion kostar. */}
+      <div className="relative z-60 w-full max-w-sm flex flex-col items-center gap-2">
+        <label
+          htmlFor="dim-slider"
+          className="text-zinc-500 text-xs tracking-widest uppercase"
+        >
+          Ljusstyrka
+        </label>
+
+        {/* input[type=range]: ett inbyggt HTML-element för att välja ett värde
+            längs en skala. min/max/step styr intervallet.
+            Vi inverterar logiken: max slider-position = minst ljus (max dimning).
+            aria-label ger skärmläsare en meningsfull beskrivning. */}
+        <input
+          id="dim-slider"
+          type="range"
+          min={0}
+          max={85}
+          step={1}
+          value={Math.round(dimLevel * 100)}
+          onChange={(e) => setDimLevel(Number(e.target.value) / 100)}
+          className="dim-slider w-full"
+          aria-label="Justera skärmens ljusstyrka"
+        />
+      </div>
 
     </main>
   );
