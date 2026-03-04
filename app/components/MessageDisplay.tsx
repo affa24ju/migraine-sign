@@ -5,11 +5,11 @@
 // Varje nyckel är ett klassnamn från modellen, värdet är det svenska meddelandet som visas.
 // 'Ingen gest' mappas till tom sträng — då visar vi ingenting.
 const GESTURE_MESSAGES: Record<string, string> = {
-  'Huvudvärk':   'Jag har huvudvärk',
+  'Huvudvärk':   'Jag har kraftig huvudvärk',
   'Medicin':     'Jag behöver medicin',
   'Vatten':      'Jag behöver vatten',
   'Vila':        'Jag behöver vila',
-  'Släck ljuset':'Släck ljuset tack',
+  'Släck ljuset':'Släck ljuset, tack!',
   'Illamående':  'Jag mår illa',
   'Ambulans':    'Ring ambulans',
   'Tystnad':     'Jag behöver tystnad',
