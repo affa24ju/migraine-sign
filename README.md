@@ -1,7 +1,7 @@
 # Migraine Sign
 
 A web application that recognizes Swedish Sign Language (SSL) gestures to support communication during severe migraine attacks.  
-This project is developed as a final thesis project within the **Java Developer program at Jönköping University (Higher Vocational Education, Sweden)**, with a focus on accessibility, AI-assisted interaction, and low-stimulus interface design.
+This project is developed as a final thesis project within the **Java Developer program at Jönköping University**, with a focus on accessibility, AI-assisted interaction, and low-stimulus interface design.
 
 ## Overview
 
