@@ -21,7 +21,11 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* var(--font-sans) pekar på Geist Sans, som laddas via next/font i layout.tsx
+     och exponeras som CSS-variabeln --font-geist-sans på body-elementet.
+     @theme inline kopplar ihop --font-sans → --font-geist-sans ovanför.
+     Arial är fallback om variabeln av någon anledning inte är tillgänglig. */
+  font-family: var(--font-sans), Arial, sans-serif;
 }
 
 /* --- Inga animationer ---
@@ -38,4 +42,43 @@ body {
   transition-duration: 0ms !important;
   animation-duration: 0ms !important;
   animation-delay: 0ms !important;
+}
+
+/* --- Dimningsreglage (input[type=range]) ---
+   Webbläsare har väldigt olika standardutseende för range-inputs.
+   Vi stilar spåret (track) och handtaget (thumb) manuellt för ett
+   enhetligt, diskret utseende som passar det mörka temat.
+
+   -webkit-  prefix krävs för Chrome/Safari.
+   Utan prefix krävs för Firefox. */
+
+.dim-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #3f3f46; /* zinc-700 — spårets bakgrundsfärg */
+  outline: none;
+  cursor: pointer;
+}
+
+/* Handtaget (den runda biten man drar) */
+.dim-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 28px;        /* stort nog att trycka på utan precision */
+  height: 28px;
+  border-radius: 50%;
+  background: #a1a1aa; /* zinc-400 */
+  cursor: pointer;
+}
+
+.dim-slider::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: #a1a1aa;
+  cursor: pointer;
 }
