@@ -39,6 +39,10 @@ declare global {
 // --- Props ---
 interface PoseDetectorProps {
   onGestureDetected: (className: string) => void;
+  // showCamera styr om kameravyn är synlig.
+  // OBS: videoelement måste ALLTID finnas i DOM:en för att inferensen ska fungera.
+  // Vi döljer den med CSS (display:none) — inte genom att avmontera komponenten.
+  showCamera?: boolean;
 }
 
 // --- Konstanter ---
@@ -54,7 +58,7 @@ const CONFIDENCE_THRESHOLD = 0.8;
 // Öka värdet för striktare krav (t.ex. 1000ms), minska för snabbare respons.
 const DEBOUNCE_MS = 600;
 
-export default function PoseDetector({ onGestureDetected }: PoseDetectorProps) {
+export default function PoseDetector({ onGestureDetected, showCamera = true }: PoseDetectorProps) {
   // Referens till webbkamerans DOM-element (HTMLVideoElement).
   const webcamRef = useRef<Webcam>(null);
 
@@ -205,14 +209,18 @@ export default function PoseDetector({ onGestureDetected }: PoseDetectorProps) {
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* mirrored={true} speglar bilden som en spegel — mer intuitivt vid gestigenkänning */}
-      <Webcam
-        ref={webcamRef}
-        mirrored={true}
-        width={400}
-        height={300}
-        className="rounded-lg opacity-60"
-      />
+      {/* showCamera styr synligheten via Tailwind-klassen "hidden" (display:none).
+          Videoelement med display:none stannar kvar i DOM och strömmar vidare —
+          readyState förblir 4 och inferensloopen påverkas inte alls. */}
+      <div className={showCamera ? '' : 'hidden'}>
+        <Webcam
+          ref={webcamRef}
+          mirrored={true}
+          width={400}
+          height={300}
+          className="rounded-lg opacity-60"
+        />
+      </div>
 
       {!isLoaded && !error && (
         <p className="text-sm text-zinc-400">Laddar modell...</p>
