@@ -18,7 +18,13 @@ export default function Home() {
   // varje gång Home renderar om sig.
   // Den tomma beroende-arrayen [] betyder att funktionen aldrig återskapas.
   const handleGestureDetected = useCallback((className: string) => {
-    setDetectedClass(className);
+    // Uppdatera bara state när en faktisk gest detekteras.
+    // 'Ingen gest' ignoreras — det senaste meddelandet stannar kvar
+    // tills en ny gest ersätter det. Användaren behöver inte hålla
+    // posen; mottagaren (anhörig/vårdare) kan läsa i lugn och ro.
+    if (className !== 'Ingen gest') {
+      setDetectedClass(className);
+    }
   }, []);
 
   return (
