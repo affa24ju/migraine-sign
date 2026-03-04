@@ -52,6 +52,16 @@ body {
    -webkit-  prefix krävs för Chrome/Safari.
    Utan prefix krävs för Firefox. */
 
+/* --- Fokusindikator ---
+   Tailwind återställer webbläsarens standardomriss, så vi lägger till en
+   tydlig fokusring för tangentbordsnavigering. :focus-visible aktiveras
+   bara vid tangentbords- eller programmatisk fokus, inte vid musklick. */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid #a1a1aa; /* zinc-400 */
+  outline-offset: 2px;
+}
+
 .dim-slider {
   appearance: none;
   -webkit-appearance: none;

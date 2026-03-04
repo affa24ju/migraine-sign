@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import PoseDetector from './components/PoseDetector';
 import MessageDisplay from './components/MessageDisplay';
@@ -12,6 +12,25 @@ export default function Home() {
   // Dimningsnivå: 0 = ingen dimning, 0.85 = maximal dimning (85% svart overlay).
   // Startar på 0 — användaren justerar själv vid behov.
   const [dimLevel, setDimLevel] = useState<number>(0);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement) return;
+
+      if (e.key === 'c' || e.key === 'C') {
+        setShowCamera(prev => !prev);
+      }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+        setDimLevel(prev => Math.min(0.85, prev + 0.05));
+      }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+        setDimLevel(prev => Math.max(0, prev - 0.05));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleGestureDetected = useCallback((className: string) => {
     if (className !== 'Ingen gest') {
