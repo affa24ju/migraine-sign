@@ -1,8 +1,14 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
+/* --- Färgvariabler ---
+   Mörkt tema används alltid, oavsett systeminställning.
+   Vi tar INTE hänsyn till prefers-color-scheme eftersom användaren
+   kan ha migrän och alltid behöver ett mörkt, lågstimulans-gränssnitt.
+   zinc-950 (#09090b) som bakgrund — mörkgrå, inte svart, för att
+   undvika hård kontrast mot off-white text. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #09090b; /* zinc-950 */
+  --foreground: #e4e4e7; /* zinc-200 — mjuk off-white, inte bländande vit */
 }
 
 @theme inline {
@@ -12,15 +18,24 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* --- Inga animationer ---
+   Inaktiverar alla CSS-övergångar och animationer i hela appen.
+   Rörliga element (fade-ins, slide-ins, hover-effekter) är stimulerande
+   och kan förvärra migrän. Vi sätter duration till 0ms istället för att
+   ta bort reglerna — det är ett säkrare sätt som inte bryter layouten.
+
+   prefers-reduced-motion är en systeminställning som användare kan aktivera,
+   men vi tillämpar detta ALLTID — användaren ska inte behöva konfigurera det. */
+*,
+*::before,
+*::after {
+  transition-duration: 0ms !important;
+  animation-duration: 0ms !important;
+  animation-delay: 0ms !important;
 }
