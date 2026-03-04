@@ -49,7 +49,7 @@ export default function Home() {
             även om ett overlay-lager läggs ovanpå senare (steg 4). */}
         <button
           onClick={() => setShowCamera(prev => !prev)}
-          className="text-zinc-500 text-sm tracking-wide py-2 px-4 rounded-md border border-zinc-800 pointer-events-auto"
+          className="text-zinc-400 text-base tracking-wide py-3 px-6 rounded-md border border-zinc-700 pointer-events-auto"
           aria-label={showCamera ? 'Dölj kamera' : 'Visa kamera'}
         >
           {showCamera ? 'Dölj kamera' : 'Visa kamera'}
