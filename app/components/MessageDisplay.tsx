@@ -40,7 +40,7 @@ export default function MessageDisplay({ detectedClass }: MessageDisplayProps) {
     // leading-snug = komprimerat radavstånd för korta meddelanden på en rad.
     // max-w-lg begränsar radlängden så att texten inte sprider sig för brett.
     <div className="flex items-center justify-center p-8">
-      <p className="text-5xl font-light text-zinc-200 tracking-wide leading-snug text-center max-w-lg">
+      <p className="text-3xl sm:text-5xl font-light text-zinc-200 tracking-wide leading-snug text-center max-w-lg">
         {meddelande}
       </p>
     </div>

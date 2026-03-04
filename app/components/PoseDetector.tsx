@@ -208,17 +208,17 @@ export default function PoseDetector({ onGestureDetected, showCamera = true }: P
   }, [isLoaded]);
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex flex-col items-center gap-4 w-full">
       {/* showCamera styr synligheten via Tailwind-klassen "hidden" (display:none).
           Videoelement med display:none stannar kvar i DOM och strömmar vidare —
           readyState förblir 4 och inferensloopen påverkas inte alls. */}
-      <div className={showCamera ? '' : 'hidden'}>
+      <div className={showCamera ? 'w-full max-w-sm' : 'hidden'}>
         <Webcam
           ref={webcamRef}
           mirrored={true}
-          width={400}
-          height={300}
-          className="rounded-lg opacity-60"
+          width="100%"
+          videoConstraints={{ width: 640, height: 480, facingMode: 'user' }}
+          className="rounded-lg opacity-60 w-full"
         />
       </div>
 

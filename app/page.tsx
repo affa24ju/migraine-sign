@@ -41,7 +41,7 @@ export default function Home() {
           så att de alltid går att interagera med. */}
       <div className="relative z-60 flex flex-col items-center gap-3 w-full">
 
-        <h1 className="text-zinc-600 text-xs tracking-widest uppercase">
+        <h1 className="text-zinc-600 text-lg tracking-widest uppercase">
           MigraineSign
         </h1>
 
