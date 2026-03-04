@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Migraine Sign
+
+A web application that recognizes Swedish Sign Language (SSL) gestures for migraine sufferers, built as a thesis project.
+
+## Overview
+
+This app uses your device camera and a Google Teachable Machine pose model to detect hand/body gestures in real time. When a recognized gesture is held for 600 ms, it displays the corresponding Swedish message on screen — designed to help migraine patients communicate without speaking or using bright screens.
+
+## Tech Stack
+
+- **Next.js** (App Router) + **React 19** + **TypeScript**
+- **Tailwind CSS v4**
+- **TensorFlow.js 1.3.1** (CDN)
+- **Google Teachable Machine** pose model (`@teachablemachine/pose`)
+
+## Gesture Model
+
+- 11 gesture classes trained with PoseNet MobileNetV1
+- Model files located in `public/model/` (`model.json`, `weights.bin`, `metadata.json`)
+- Class `'Ingen gest'` (no gesture) shows nothing
+- All other classes map to Swedish phrases displayed via `MessageDisplay`
+
+## Project Structure
+
+```
+app/
+  page.tsx              # Root — holds detectedClass state, wires components
+  layout.tsx            # Loads TF.js + Teachable Machine from CDN
+  components/
+    PoseDetector.tsx    # Camera feed, pose inference loop, gesture debouncing
+    MessageDisplay.tsx  # Maps gesture class name → Swedish message string
+public/
+  model/                # Teachable Machine model files
+```
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Allow camera access when prompted. Hold a recognized gesture for ~0.6 seconds to trigger a message.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Important Implementation Notes
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- TF.js and `@teachablemachine/pose` are loaded via CDN (`<Script strategy="beforeInteractive">`) — **not** bundled by webpack, as that breaks internal TF.js module scope.
+- TF.js version must be **1.3.1** (not 1.7.4), because the Teachable Machine bundle calls `tf.fromPixels()` which was removed in later versions.
+- Inference runs on a horizontally-flipped off-screen canvas to match how the model was trained (selfie/mirror orientation).
+- Gesture debounce: 600 ms of the same class before reporting.
