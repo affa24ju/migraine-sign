@@ -53,7 +53,7 @@ interface PoseDetectorProps {
   //   'pose'   — enbart skelettritning på mörk bakgrund
   //   'none'   — ingen vy alls
   // OBS: videoelement måste ALLTID finnas i DOM:en för att inferensen ska fungera.
-  // Vi döljer den med CSS (display:none) — inte genom att avmontera komponenten.
+  // Vi döljer det med 'w-0 h-0 overflow-hidden' — INTE display:none (fryser strömmen).
   displayMode?: 'camera' | 'pose' | 'none';
 }
 
@@ -189,16 +189,22 @@ export default function PoseDetector({ onGestureDetected, displayMode = 'camera'
         // Rita skelett om vi är i 'pose'-läge.
         // Vi ritar på poseCanvasRef (den synliga canvasen i JSX) i koordinaterna
         // från den speglade canvasen — så skelettets vänster/höger matchar användarens.
+        // VIKTIGT: Skelettritning har ett eget try/catch så att ett ritfel aldrig
+        // kan hindra predict() från att köras — klassificering måste alltid ske.
         if (displayModeRef.current === 'pose' && poseCanvasRef.current) {
-          const poseCanvas = poseCanvasRef.current;
-          const poseCtx = poseCanvas.getContext('2d')!;
-          if (poseCanvas.width !== videoWidth)  poseCanvas.width  = videoWidth;
-          if (poseCanvas.height !== videoHeight) poseCanvas.height = videoHeight;
-          // Fyll med mörk bakgrund före varje bildruta så gamla punkter inte "spökar".
-          poseCtx.fillStyle = '#09090b';
-          poseCtx.fillRect(0, 0, videoWidth, videoHeight);
-          window.tmPose.drawKeypoints(pose.keypoints, 0.5, poseCtx);
-          window.tmPose.drawSkeleton(pose.keypoints, 0.5, poseCtx);
+          try {
+            const poseCanvas = poseCanvasRef.current;
+            const poseCtx = poseCanvas.getContext('2d')!;
+            if (poseCanvas.width !== videoWidth)  poseCanvas.width  = videoWidth;
+            if (poseCanvas.height !== videoHeight) poseCanvas.height = videoHeight;
+            // Fyll med mörk bakgrund före varje bildruta så gamla punkter inte "spökar".
+            poseCtx.fillStyle = '#09090b';
+            poseCtx.fillRect(0, 0, videoWidth, videoHeight);
+            window.tmPose.drawKeypoints(pose.keypoints, 0.5, poseCtx);
+            window.tmPose.drawSkeleton(pose.keypoints, 0.5, poseCtx);
+          } catch (drawErr) {
+            console.warn('Skelettritning misslyckades:', drawErr);
+          }
         }
 
         // predict: skickar posenetOutput genom det tränade nätverket och
@@ -206,14 +212,14 @@ export default function PoseDetector({ onGestureDetected, displayMode = 'camera'
         // [{ className: 'Huvudvärk', probability: 0.95 }, ...]
         const predictions = await modelRef.current.predict(posenetOutput);
 
+        // Skyddscheck: predict() ska alltid returnera en rad per klass, men om
+        // arrayen mot förmodan är tom undviker vi TypeError från reduce().
+        if (predictions.length === 0) return;
+
         // Hitta klassen med högst sannolikhet.
         const bästa = predictions.reduce((prev, curr) =>
           curr.probability > prev.probability ? curr : prev
         );
-
-        // Tillfällig loggning för felsökning — ta bort när allt fungerar.
-        // Öppna webbläsarens DevTools (F12 → Console) för att se utdata.
-        console.log(`${bästa.className}: ${(bästa.probability * 100).toFixed(1)}%`);
 
         // Avgör vilken klass som vann — eller 'Ingen gest' om vi inte är säkra nog.
         const detectedClass =
@@ -248,10 +254,12 @@ export default function PoseDetector({ onGestureDetected, displayMode = 'camera'
 
   return (
     <div className="flex flex-col items-center gap-4 w-full">
-      {/* displayMode styr synligheten via Tailwind-klassen "hidden" (display:none).
-          Videoelement med display:none stannar kvar i DOM och strömmar vidare —
-          readyState förblir 4 och inferensloopen påverkas inte alls. */}
-      <div className={displayMode === 'camera' ? 'w-full max-w-sm' : 'hidden'}>
+      {/* OBS: använd INTE 'hidden' (display:none) här — det fryser videoströmmen i
+          Chrome/Safari. drawImage() ritar då samma frysta bildruta om och om, och
+          modellen kollapsar till en klass (oavsett gest).
+          'w-0 h-0 overflow-hidden' behåller elementet i render-trädet så att webbläsaren
+          fortsätter avkoda nya bildrutor, men tar noll visuellt utrymme. */}
+      <div className={displayMode === 'camera' ? 'w-full max-w-sm' : 'w-0 h-0 overflow-hidden'}>
         <Webcam
           ref={webcamRef}
           mirrored={true}
