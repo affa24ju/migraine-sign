@@ -56,6 +56,38 @@ public/
   model/                # Teachable Machine model files
 ```
 
+## Features
+
+### Display modes
+
+Three modes control what is shown on screen, selectable via buttons or the `C` key:
+
+| Mode | Button label | What is shown |
+|------|-------------|---------------|
+| Camera | Visa kamera | Live camera feed |
+| Pose | Visa pose | Skeleton overlay on dark background (no camera image) |
+| Hide all | Dölj allt | Screen is blank — only a pulsing "Detekterar…" indicator |
+
+Gesture detection runs continuously in all three modes. In **Dölj allt** mode the camera element stays in the DOM (collapsed to zero size) so the browser keeps decoding frames.
+
+### Pose mode
+
+In pose mode the application draws the PoseNet skeleton (joints and bones) onto a canvas with a dark background instead of showing the raw camera image. This gives visual feedback about detected body position while hiding the camera preview.
+
+### Keyboard navigation
+
+All controls are accessible from the keyboard without a mouse:
+
+| Key | Action |
+|-----|--------|
+| `C` | Cycle display mode: Camera → Pose → Dölj allt → Camera |
+| `↑` / `→` | Increase screen dimming (reduce brightness) |
+| `↓` / `←` | Decrease screen dimming (increase brightness) |
+
+### Screen dimming (Ljusstyrka)
+
+A slider at the bottom of the screen applies a black overlay (0–85 % opacity) to reduce perceived brightness without requiring OS-level settings. This is useful during migraine when bright screens are painful. The same effect can be controlled with the arrow keys.
+
 ## Getting Started
 
 ```bash
