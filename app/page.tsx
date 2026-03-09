@@ -71,6 +71,13 @@ export default function Home() {
           displayMode={displayMode}
         />
 
+        {/* Diskret indikator i "Dölj allt"-läge — visar att detektering pågår. */}
+        {displayMode === 'none' && (
+          <p className="text-zinc-600 text-xs tracking-widest uppercase animate-pulse">
+            Detekterar…
+          </p>
+        )}
+
         {/* Tre knappar — aktiv knapp får ljusare text och ljusare kant. */}
         <div className="flex gap-2">
           {(['camera', 'pose', 'none'] as const).map((mode) => {
