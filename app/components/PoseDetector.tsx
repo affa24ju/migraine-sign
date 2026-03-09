@@ -129,6 +129,20 @@ export default function PoseDetector({ onGestureDetected, displayMode = 'camera'
         // window.tmPose laddades via CDN-skripten i layout.tsx.
         // Här anropar vi .load() med sökvägarna till modellfilerna i public/model/.
         const model = await window.tmPose.load(MODEL_URL, METADATA_URL);
+
+        // Värm upp WebGL-shaders: kör ett par tomma inferenser direkt efter att modellen
+        // laddats. TF.js kompilerar GLSL-shaders vid första anropet för varje operation —
+        // utan detta sker kompileringen live under de första riktiga bildruta, vilket ger
+        // långsamma och instabila prediktioner i början.
+        // inputResolution 257 matchar modellens träningsinställningar.
+        const warmup = document.createElement('canvas');
+        warmup.width = 257;
+        warmup.height = 257;
+        for (let i = 0; i < 3; i++) {
+          const { posenetOutput } = await model.estimatePose(warmup);
+          await model.predict(posenetOutput);
+        }
+
         modelRef.current = model;
         setIsLoaded(true);
       } catch (err) {

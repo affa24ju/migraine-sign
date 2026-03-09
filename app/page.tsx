@@ -15,7 +15,7 @@ export default function Home() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement) return;
 
       if (e.key === 'c' || e.key === 'C') {
         setDisplayMode(prev =>
@@ -71,6 +71,13 @@ export default function Home() {
           displayMode={displayMode}
         />
 
+        {/* Diskret indikator i "Dölj allt"-läge — visar att detektering pågår. */}
+        {displayMode === 'none' && (
+          <p className="text-zinc-600 text-xs tracking-widest uppercase animate-pulse">
+            Detekterar…
+          </p>
+        )}
+
         {/* Tre knappar — aktiv knapp får ljusare text och ljusare kant. */}
         <div className="flex gap-2">
           {(['camera', 'pose', 'none'] as const).map((mode) => {
@@ -80,7 +87,7 @@ export default function Home() {
               <button
                 key={mode}
                 onClick={() => setDisplayMode(mode)}
-                className={`text-base tracking-wide py-3 px-4 rounded-md border transition-colors ${
+                className={`text-base tracking-wide py-3 px-4 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${
                   active
                     ? 'text-zinc-100 border-zinc-400'
                     : 'text-zinc-500 border-zinc-700'
