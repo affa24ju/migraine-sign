@@ -7,7 +7,7 @@ import MessageDisplay from './components/MessageDisplay';
 
 export default function Home() {
   const [detectedClass, setDetectedClass] = useState<string>('Ingen gest');
-  const [showCamera, setShowCamera] = useState<boolean>(true);
+  const [displayMode, setDisplayMode] = useState<'camera' | 'pose' | 'none'>('camera');
 
   // Dimningsnivå: 0 = ingen dimning, 0.85 = maximal dimning (85% svart overlay).
   // Startar på 0 — användaren justerar själv vid behov.
@@ -18,7 +18,9 @@ export default function Home() {
       if (e.target instanceof HTMLInputElement) return;
 
       if (e.key === 'c' || e.key === 'C') {
-        setShowCamera(prev => !prev);
+        setDisplayMode(prev =>
+          prev === 'camera' ? 'pose' : prev === 'pose' ? 'none' : 'camera'
+        );
       }
       if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
         setDimLevel(prev => Math.min(0.85, prev + 0.05));
@@ -66,16 +68,30 @@ export default function Home() {
 
         <PoseDetector
           onGestureDetected={handleGestureDetected}
-          showCamera={showCamera}
+          displayMode={displayMode}
         />
 
-        <button
-          onClick={() => setShowCamera(prev => !prev)}
-          className="text-zinc-400 text-base tracking-wide py-3 px-6 rounded-md border border-zinc-700"
-          aria-label={showCamera ? 'Dölj kamera' : 'Visa kamera'}
-        >
-          {showCamera ? 'Dölj kamera' : 'Visa kamera'}
-        </button>
+        {/* Tre knappar — aktiv knapp får ljusare text och ljusare kant. */}
+        <div className="flex gap-2">
+          {(['camera', 'pose', 'none'] as const).map((mode) => {
+            const labels = { camera: 'Visa kamera', pose: 'Visa pose', none: 'Dölj allt' };
+            const active = displayMode === mode;
+            return (
+              <button
+                key={mode}
+                onClick={() => setDisplayMode(mode)}
+                className={`text-base tracking-wide py-3 px-4 rounded-md border transition-colors ${
+                  active
+                    ? 'text-zinc-100 border-zinc-400'
+                    : 'text-zinc-500 border-zinc-700'
+                }`}
+                aria-pressed={active}
+              >
+                {labels[mode]}
+              </button>
+            );
+          })}
+        </div>
 
       </div>
 
