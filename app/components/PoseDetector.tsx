@@ -14,12 +14,19 @@ interface Prediction {
   probability: number;
 }
 
+// En enskild ledpunkt (t.ex. näsa, höft, handled) som PoseNet returnerar.
+interface Keypoint {
+  score: number;
+  part: string;
+  position: { x: number; y: number };
+}
+
 // Representerar den laddade modellen och dess metoder.
 // estimatePose accepterar både video- och canvas-element.
 interface TmPoseModel {
   estimatePose: (
     input: HTMLVideoElement | HTMLCanvasElement
-  ) => Promise<{ posenetOutput: number[] }>;
+  ) => Promise<{ pose: { keypoints: Keypoint[] }; posenetOutput: number[] }>;
   predict: (
     posenetOutput: number[]
   ) => Promise<Prediction[]>;
@@ -32,6 +39,8 @@ declare global {
   interface Window {
     tmPose: {
       load: (modelURL: string, metadataURL: string) => Promise<TmPoseModel>;
+      drawKeypoints: (keypoints: Keypoint[], minConfidence: number, ctx: CanvasRenderingContext2D) => void;
+      drawSkeleton: (keypoints: Keypoint[], minConfidence: number, ctx: CanvasRenderingContext2D) => void;
     };
   }
 }
@@ -39,10 +48,13 @@ declare global {
 // --- Props ---
 interface PoseDetectorProps {
   onGestureDetected: (className: string) => void;
-  // showCamera styr om kameravyn är synlig.
+  // displayMode styr vilken vy som visas:
+  //   'camera' — live-kamerabild (standardläge)
+  //   'pose'   — enbart skelettritning på mörk bakgrund
+  //   'none'   — ingen vy alls
   // OBS: videoelement måste ALLTID finnas i DOM:en för att inferensen ska fungera.
   // Vi döljer den med CSS (display:none) — inte genom att avmontera komponenten.
-  showCamera?: boolean;
+  displayMode?: 'camera' | 'pose' | 'none';
 }
 
 // --- Konstanter ---
@@ -58,7 +70,7 @@ const CONFIDENCE_THRESHOLD = 0.8;
 // Öka värdet för striktare krav (t.ex. 1000ms), minska för snabbare respons.
 const DEBOUNCE_MS = 600;
 
-export default function PoseDetector({ onGestureDetected, showCamera = true }: PoseDetectorProps) {
+export default function PoseDetector({ onGestureDetected, displayMode = 'camera' }: PoseDetectorProps) {
   // Referens till webbkamerans DOM-element (HTMLVideoElement).
   const webcamRef = useRef<Webcam>(null);
 
@@ -79,6 +91,18 @@ export default function PoseDetector({ onGestureDetected, showCamera = true }: P
   // När en ny klass dyker upp nollställs timern.
   // Gesten rapporteras bara uppåt när samma klass hållits i DEBOUNCE_MS millisekunder.
   const debounceRef = useRef<{ className: string; since: number } | null>(null);
+
+  // displayModeRef speglar alltid den senaste displayMode-propen inuti inferensloopen.
+  // Loopen är en långlivad closure och ser aldrig uppdaterade props direkt —
+  // samma mönster som callbackRef ovan.
+  const displayModeRef = useRef(displayMode);
+  useEffect(() => {
+    displayModeRef.current = displayMode;
+  }, [displayMode]);
+
+  // Synlig canvas för skelettritning i 'pose'-läge.
+  // Lever alltid i DOM (dold med CSS när den inte behövs) så att ref:en alltid är giltig.
+  const poseCanvasRef = useRef<HTMLCanvasElement>(null);
 
   // Off-screen canvas för att spegla videobilden horisontellt innan inferens.
   //
@@ -159,8 +183,23 @@ export default function PoseDetector({ onGestureDetected, showCamera = true }: P
         ctx.restore();
 
         // estimatePose: analyserar den SPEGLADE bildrutan med PoseNet och returnerar
-        // posenetOutput — en numerisk vektor som matchar träningsdatans orientering.
-        const { posenetOutput } = await modelRef.current.estimatePose(canvas);
+        // pose (ledpunkter) samt posenetOutput (numerisk vektor för klassificering).
+        const { pose, posenetOutput } = await modelRef.current.estimatePose(canvas);
+
+        // Rita skelett om vi är i 'pose'-läge.
+        // Vi ritar på poseCanvasRef (den synliga canvasen i JSX) i koordinaterna
+        // från den speglade canvasen — så skelettets vänster/höger matchar användarens.
+        if (displayModeRef.current === 'pose' && poseCanvasRef.current) {
+          const poseCanvas = poseCanvasRef.current;
+          const poseCtx = poseCanvas.getContext('2d')!;
+          if (poseCanvas.width !== videoWidth)  poseCanvas.width  = videoWidth;
+          if (poseCanvas.height !== videoHeight) poseCanvas.height = videoHeight;
+          // Fyll med mörk bakgrund före varje bildruta så gamla punkter inte "spökar".
+          poseCtx.fillStyle = '#09090b';
+          poseCtx.fillRect(0, 0, videoWidth, videoHeight);
+          window.tmPose.drawKeypoints(pose.keypoints, 0.5, poseCtx);
+          window.tmPose.drawSkeleton(pose.keypoints, 0.5, poseCtx);
+        }
 
         // predict: skickar posenetOutput genom det tränade nätverket och
         // returnerar sannolikheter för varje klass, t.ex.:
@@ -209,10 +248,10 @@ export default function PoseDetector({ onGestureDetected, showCamera = true }: P
 
   return (
     <div className="flex flex-col items-center gap-4 w-full">
-      {/* showCamera styr synligheten via Tailwind-klassen "hidden" (display:none).
+      {/* displayMode styr synligheten via Tailwind-klassen "hidden" (display:none).
           Videoelement med display:none stannar kvar i DOM och strömmar vidare —
           readyState förblir 4 och inferensloopen påverkas inte alls. */}
-      <div className={showCamera ? 'w-full max-w-sm' : 'hidden'}>
+      <div className={displayMode === 'camera' ? 'w-full max-w-sm' : 'hidden'}>
         <Webcam
           ref={webcamRef}
           mirrored={true}
@@ -221,6 +260,13 @@ export default function PoseDetector({ onGestureDetected, showCamera = true }: P
           className="rounded-lg opacity-60 w-full"
         />
       </div>
+
+      {/* Skelett-canvas — synlig enbart i 'pose'-läge.
+          Alltid i DOM (dold med CSS) så att poseCanvasRef alltid pekar på ett element. */}
+      <canvas
+        ref={poseCanvasRef}
+        className={displayMode === 'pose' ? 'w-full max-w-sm rounded-lg' : 'hidden'}
+      />
 
       {!isLoaded && !error && (
         <p className="text-sm text-zinc-400">Laddar modell...</p>
