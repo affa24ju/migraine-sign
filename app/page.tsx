@@ -78,8 +78,8 @@ export default function Home() {
             </div>
 
             <p className="text-amber-400 text-sm leading-relaxed border border-amber-400/30 rounded-lg p-3 bg-amber-400/5">
-              ⚠️ Använd inte som enda kommunikationsmetod i akuta nödsituationer.
-              För bästa resultat: Gör tydliga tecken och justera din position om igenkänningen felas.
+              ⚠️ Används inte denna app som enda kommunikationsmetod i akuta nödsituationer.
+              För bästa resultat: Gör tydliga tecken och justera din position om igenkänningen mislyckas.
             </p>
 
             <button
