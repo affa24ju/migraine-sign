@@ -16,6 +16,11 @@ export default function Home() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showModal) {
+        setShowModal(false);
+        return;
+      }
+
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement) return;
 
       if (e.key === 'c' || e.key === 'C') {
@@ -33,7 +38,7 @@ export default function Home() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [showModal]);
 
   const handleGestureDetected = useCallback((className: string) => {
     if (className !== 'Ingen gest') {
@@ -83,6 +88,7 @@ export default function Home() {
               autoFocus
             >
               Jag förstår — fortsätt till appen
+              <span className="ml-2 text-zinc-500 text-xs font-normal">Esc</span>
             </button>
           </div>
         </div>
